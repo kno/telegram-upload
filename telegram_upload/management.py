@@ -72,6 +72,8 @@ async def interactive_select_local_files():
         entries = []
         for entry in os.scandir(path):
             entries.append((entry.path, entry.name + ('/' if entry.is_dir() else '')))
+        # Sort entries by name (case-insensitive)
+        entries.sort(key=lambda x: x[1].lower())
         return entries
 
     async def select_files_or_folders(current_path):
@@ -183,6 +185,9 @@ def upload(files, to, config, delete_on_success, print_file_id, force_file, forw
         click.echo('Select the local files to upload:')
         click.echo('[SPACE] Select file [ENTER] Next step')
         files = async_to_sync(interactive_select_local_files())
+        # Sort files alphabetically in interactive mode
+        if files:
+            files = sorted(files)
     if interactive and not files:
         # No files selected. Exiting.
         return
