@@ -64,10 +64,39 @@ async def interactive_select_files(client, entity: str):
 
 
 async def interactive_select_local_files():
-    iterator = filter(lambda x: os.path.isfile(x) and os.path.lexists(x), os.listdir('.'))
-    iterator = sync_to_async_iterator(map(lambda x: (x, x), iterator))
-    return await show_checkboxlist(iterator, 'Not files were found in the current directory '
-                                             '(subdirectories are not supported). Exiting...')
+    import asyncio
+    import functools
+    from telegram_upload.utils import scantree
+    
+    def list_entries(path):
+        entries = []
+        for entry in os.scandir(path):
+            entries.append((entry.path, entry.name + ('/' if entry.is_dir() else '')))
+        return entries
+
+    async def select_files_or_folders(current_path):
+        entries = list_entries(current_path)
+        if not entries:
+            click.echo('No files or folders found in {}. Exiting...'.format(current_path), err=True)
+            return []
+        # Show both files and folders
+        from telegram_upload.cli import show_checkboxlist
+        from telegram_upload.utils import sync_to_async_iterator
+        selected = await show_checkboxlist(sync_to_async_iterator(entries), f'No files or folders found in {current_path}. Exiting...')
+        if not selected:
+            return []
+        result = []
+        for sel in selected:
+            if os.path.isdir(sel):
+                # Recursively select files in the folder
+                for file_entry in scantree(sel, follow_symlinks=True):
+                    if not file_entry.is_dir():
+                        result.append(file_entry.path)
+            else:
+                result.append(sel)
+        return result
+
+    return await select_files_or_folders('.')
 
 
 async def interactive_select_dialog(client):
